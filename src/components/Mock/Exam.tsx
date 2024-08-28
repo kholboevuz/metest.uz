@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/card'
 import { Player } from '@lottiefiles/react-lottie-player'
 import { useEffect, useRef, useState } from 'react'
+import Countdown from 'react-countdown'
 import { CountdownCircleTimer } from 'react-countdown-circle-timer'
 import { Visualizer } from 'react-sound-visualizer'
 import { Badge } from '../ui/badge'
@@ -16,7 +17,8 @@ import { Button } from '../ui/button'
 export default function Exam() {
 	const [audio, setAudio] = useState<MediaStream | null>(null)
 	const [isStartExam, setIsStartExam] = useState<boolean>(false)
-
+	const [isVoiceRecording, setIsVoiceRecording] = useState<boolean>(false)
+	const [isButtonDisabled, setIsButtonDisabled] = useState<boolean>(false)
 	// const [exam, setExam] = useState<ExamData[]>([])
 	const audioRef = useRef<HTMLAudioElement>(null)
 	const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -27,6 +29,7 @@ export default function Exam() {
 
 	const startRecorder = () => {
 		const startSound = new Audio(sound)
+		setIsVoiceRecording(true)
 		startSound
 			.play()
 			.then(() => {
@@ -112,6 +115,7 @@ export default function Exam() {
 	}
 
 	const startExam = () => {
+		setIsButtonDisabled(true)
 		playAudio()
 	}
 
@@ -131,6 +135,31 @@ export default function Exam() {
 		setFontSize(prevSize => Math.max(prevSize - 2, 10))
 	}
 
+	const Completionist = () => <span>You are good to go!</span>
+
+	const renderer = ({
+		minutes,
+		seconds,
+		completed,
+	}: {
+		minutes: number
+		seconds: number
+		completed: boolean
+	}) => {
+		if (completed) {
+			return <Completionist />
+		} else {
+			return (
+				<div className='text-lg '>
+					Qolgan vaqt:
+					<span className={`${seconds < 10 && 'text-red-700'} text-lg pl-1`}>
+						0{minutes}:{seconds}
+					</span>
+				</div>
+			)
+		}
+	}
+
 	return (
 		<div className='max-w-6xl m-auto pt-10 mb-16 '>
 			<div className='flex justify-center mb-10 lg:mb-32'>
@@ -140,8 +169,8 @@ export default function Exam() {
 							1.1
 						</span>
 					</li>
-					<li className="flex w-full items-center text-green-600 dark:text-green-500 after:content-[''] after:w-full after:h-1 after:border-b after:border-green-100 after:border-4 after:inline-block dark:after:border-green-800">
-						<span className='flex items-center justify-center w-10 h-10 bg-green-100 rounded-full lg:h-12 lg:w-12 dark:bg-green-800 shrink-0 font-bold text-lg'>
+					<li className="flex w-full items-center after:content-[''] after:w-full after:h-1 after:border-b after:border-yellow-100 after:border-4 after:inline-block dark:after:border-yellow-700">
+						<span className='flex items-center justify-center w-10 h-10 bg-yellow-100 rounded-full lg:h-12 lg:w-12 dark:bg-yellow-700 shrink-0 font-bold text-lg'>
 							1.2
 						</span>
 					</li>
@@ -199,7 +228,11 @@ export default function Exam() {
 				</div>
 				<div className='flex justify-center'>
 					{isStartExam ? (
-						<div className='text-6xl font-bold text-yellow-700'>
+						<div
+							className={`text-6xl font-bold text-yellow-700 ${
+								isVoiceRecording && 'hidden'
+							}`}
+						>
 							<CountdownCircleTimer
 								isPlaying
 								duration={7}
@@ -211,30 +244,47 @@ export default function Exam() {
 							</CountdownCircleTimer>
 						</div>
 					) : (
-						<Button onClick={startExam}>Boshlash</Button>
+						<Button
+							onClick={startExam}
+							className={`${isButtonDisabled && 'hidden'}`}
+						>
+							Boshlash
+						</Button>
 					)}
 				</div>
 				<div>
 					<Card>
 						<CardHeader className='bg-blue-600 text-white text-center'>
-							<CardTitle className='font-bold'>Speaking</CardTitle>
+							<CardTitle className='font-bold'>
+								{isVoiceRecording ? (
+									<Countdown date={Date.now() + 30000} renderer={renderer}>
+										<Completionist />
+									</Countdown>
+								) : (
+									<div>
+										<p>Speaking</p>
+									</div>
+								)}
+							</CardTitle>
 						</CardHeader>
 						<CardContent>
 							<div className='flex justify-center mt-5'>
-								<div className='bg-red-200 p-3 rounded-lg inline-block  '>
-									<Player
-										src='https://lottie.host/dfd993ab-cd85-44de-8abd-b900bd9f2c40/Y7Pf4lLklJ.json'
-										background='transparent'
-										speed={2}
-										style={{
-											width: '20px',
-											height: '20px',
-											margin: 'auto',
-										}}
-										loop
-										autoplay
-									/>
-								</div>
+								{isVoiceRecording && (
+									<div className='bg-red-200 p-3 rounded-lg inline-block  '>
+										<Player
+											src='https://lottie.host/dfd993ab-cd85-44de-8abd-b900bd9f2c40/Y7Pf4lLklJ.json'
+											background='transparent'
+											speed={2}
+											style={{
+												width: '20px',
+												height: '20px',
+												margin: 'auto',
+											}}
+											loop
+											autoplay
+										/>
+									</div>
+								)}
 							</div>
 							<div className='flex flex-col items-center mt-5 dark:bg-zinc-300 rounded-lg'>
 								<Visualizer audio={audio}>

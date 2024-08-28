@@ -105,12 +105,12 @@ export default function Dashboard() {
 									</CardHeader>
 									<CardContent>
 										<p>
-											Bu bizga eng yaxshi ko'nikmalarni siz shug'ullanishingiz
-											uchun tavsiya etishga yordam beradi.
+											Bunda siz namunaviy imtihon va umumiy natijalaringizni
+											ko'rib borishingiz mumkin boladi!
 										</p>
 									</CardContent>
 									<CardFooter>
-										<Button>Diagnostika</Button>
+										<Button>Natijalar</Button>
 									</CardFooter>
 								</Card>
 							</div>
