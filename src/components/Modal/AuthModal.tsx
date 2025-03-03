@@ -1,61 +1,60 @@
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTrigger,
-} from '@/components/ui/dialog'
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
-import { useAuthStore } from '@/hook'
-import LoginForm from '../Form/Login'
-import RegisterForm from '../Form/Register'
-import RestPassForm from '../Form/RestPass'
-import { Button } from '../ui/button'
+import { useAuthStore } from "@/hook";
+
+import { Button } from "../ui/button";
+import { DialogTitle } from "@radix-ui/react-dialog";
+
+import LoginForm from "../Form/LoginForm";
+import RegisterForm from "../Form/RegisterForm";
+import RessPassForm from "../Form/RessPassForm";
 
 export default function AuthModal() {
-	const { isPage } = useAuthStore()
+  const { isPage } = useAuthStore();
 
-	return (
-		<div>
-			<Dialog>
-				{/* Ensure DialogTrigger does not create a button inside another button */}
-				<DialogTrigger asChild>
-					<Button
-						variant='outline'
-						className='rounded-lg bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700'
-					>
-						Kirish
-					</Button>
-				</DialogTrigger>
-				<DialogContent>
-					<DialogHeader>
-						<DialogDescription asChild>
-							<div>
-								<div className='flex flex-col items-center justify-center px-6 py-8 mx-auto '>
-									<div className='w-full  rounded-lg shadow dark:border md:mt-0 sm:max-w-md xl:p-0 '>
-										<div className='p-6 space-y-4 md:space-y-6 sm:p-8'>
-											<h1 className='text-xl font-bold leading-tight tracking-tight text-gray-900 md:text-2xl dark:text-white'>
-												{isPage === 0
-													? 'Shaxsiy akkauntingizga kiring'
-													: isPage === 1
-													? 'Akkaunt yaratish'
-													: 'Parolingizni tiklang'}
-											</h1>
-											{isPage === 0 ? (
-												<LoginForm />
-											) : isPage === 1 ? (
-												<RegisterForm />
-											) : (
-												<RestPassForm />
-											)}
-										</div>
-									</div>
-								</div>
-							</div>
-						</DialogDescription>
-					</DialogHeader>
-				</DialogContent>
-			</Dialog>
-		</div>
-	)
+  return (
+    <div>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button
+            variant="outline"
+            className="rounded-lg bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+          >
+            Kirish
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Ytest.uz security ©</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="flex  ">
+              <Button
+                className="w-full rounded-none"
+                variant={isPage == 1 ? "default" : "outline"}
+                onClick={() => useAuthStore.setState({ isPage: 1 })}
+              >
+                Kirish
+              </Button>
+              <Button
+                className="w-full rounded-none"
+                variant={isPage == 2 ? "default" : "outline"}
+                onClick={() => useAuthStore.setState({ isPage: 2 })}
+              >
+                Ro'yxatdan o'tish
+              </Button>
+            </div>
+            {isPage == 1 && <LoginForm />}
+            {isPage == 2 && <RegisterForm />}
+            {isPage == 3 && <RessPassForm />}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }
