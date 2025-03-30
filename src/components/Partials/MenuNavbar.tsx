@@ -1,34 +1,72 @@
-import { AiOutlineTrophy } from "react-icons/ai";
 import { IoMdTime } from "react-icons/io";
 import { MdOutlineSignalCellularAlt } from "react-icons/md";
 import { RiCoinsFill } from "react-icons/ri";
 import { Badge } from "../ui/badge";
+import useAuthUser from "react-auth-kit/hooks/useAuthUser";
+import { IsUser } from "@/types/type";
+import { useEffect, useState } from "react";
 
 export default function MenuNavbar() {
+  const [loginTime, setLoginTime] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
+
+  useEffect(() => {
+    const storedTime = localStorage.getItem("login_time");
+    if (storedTime) {
+      setLoginTime(parseInt(storedTime, 10));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (loginTime) {
+      const interval = setInterval(() => {
+        setElapsedTime(Date.now() - loginTime);
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [loginTime]);
+
+  const formatTime = (milliseconds: number) => {
+    const seconds = Math.floor(milliseconds / 1000) % 60;
+    const minutes = Math.floor(milliseconds / (1000 * 60)) % 60;
+    const hours = Math.floor(milliseconds / (1000 * 60 * 60));
+
+    let formattedTime = "";
+    if (hours > 0) formattedTime += `${hours}h `;
+    if (minutes > 0) formattedTime += `${minutes}m `;
+    if (seconds > 0) formattedTime += `${seconds}s`;
+
+    return formattedTime.trim();
+  };
+
+  const auth = useAuthUser() as IsUser | null;
+
   return (
-    <div>
-      <div className=" flex justify-between items-center">
-        <div className="flex items-center gap-2 mt-2">
-          <p className="flex gap-2 items-center">
-            <MdOutlineSignalCellularAlt className="text-lg font-bold opacity-50" />
-            Sizning unvoningiz: <span className="font-bold">1400</span>
+    <div className="px-4 sm:px-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mt-4 sm:mt-6 mb-4">
+        {/* Left Section: Attempts and Time */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+          <p className="flex items-center gap-1 sm:gap-2 text-sm sm:text-base">
+            <MdOutlineSignalCellularAlt className="text-base sm:text-lg opacity-50" />
+            Sizning urinishlaringiz:{" "}
+            <span className="font-bold">{auth?.attempts} ta</span>
           </p>
-          <span className="font-bold">·</span>
-          <p className="flex gap-2 items-center">
-            <IoMdTime className="text-lg font-bold opacity-50" />
-            Kunlik o'rtacha: <span className="font-bold">1h 15m</span>
+          <span className="hidden sm:inline font-bold text-lg">·</span>
+          <p className="flex items-center gap-1 sm:gap-2 text-sm sm:text-base">
+            <IoMdTime className="text-base sm:text-lg opacity-50" />
+            Kunlik o'rtacha vaqtingiz:{" "}
+            <span className="font-bold">{formatTime(elapsedTime)}</span>
           </p>
         </div>
 
-        <div className="flex gap-5 mt-5 mb-3">
-          <Badge className="p-1 pl-2 pr-2 hover:cursor-pointer bg-yellow-600 dark:bg-yellow-500 dark:text-white gap-2">
-            <AiOutlineTrophy className="text-xl" />{" "}
-            <span className="text-sm"> 10 xp</span>
-          </Badge>
-
-          <Badge className="p-1 pl-2 pr-2 hover:cursor-pointer bg-yellow-600 dark:bg-yellow-500 dark:text-white gap-2">
-            <RiCoinsFill className="text-xl" />{" "}
-            <span className="text-sm"> 0 Coinlar</span>
+        {/* Right Section: Balance Badge */}
+        <div className="flex justify-start sm:justify-end w-full sm:w-auto">
+          <Badge
+            className="p-1.5 sm:p-2 pl-2 sm:pl-3 pr-2 sm:pr-3 hover:cursor-pointer bg-yellow-600 dark:bg-yellow-500 text-white flex items-center gap-1 sm:gap-2 transition-all duration-200"
+          >
+            <RiCoinsFill className="text-lg sm:text-xl" />
+            <span className="text-xs sm:text-sm">{auth?.balance} so'm</span>
           </Badge>
         </div>
       </div>

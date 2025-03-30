@@ -11,8 +11,8 @@ import { Button } from "../ui/button";
 import { DialogTitle } from "@radix-ui/react-dialog";
 
 import LoginForm from "../Form/LoginForm";
-import RegisterForm from "../Form/RegisterForm";
-import RessPassForm from "../Form/RessPassForm";
+
+import TelegramBotCard from "../Form/TelegramCard";
 
 export default function AuthModal() {
   const { isPage } = useAuthStore();
@@ -50,8 +50,8 @@ export default function AuthModal() {
               </Button>
             </div>
             {isPage == 1 && <LoginForm />}
-            {isPage == 2 && <RegisterForm />}
-            {isPage == 3 && <RessPassForm />}
+            {isPage == 2 && <TelegramBotCard />}
+
           </div>
         </DialogContent>
       </Dialog>

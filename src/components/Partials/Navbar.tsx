@@ -5,13 +5,15 @@ import { MdDarkMode, MdLightMode } from "react-icons/md";
 
 import { Link } from "react-router-dom";
 import { useTheme } from "../provider/theme-provider";
-
+import useIsAuthenticated from 'react-auth-kit/hooks/useIsAuthenticated';
 import AuthModal from "../Modal/AuthModal";
 import { Button } from "@/components/ui/button";
+import UserDropdown from "../user/user-dropdown";
 
 export default function Navbar() {
   const { setTheme, theme } = useTheme();
-
+  const isAuthenticated = useIsAuthenticated();
+  console.log(isAuthenticated)
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark");
   };
@@ -32,8 +34,8 @@ export default function Navbar() {
           <Button variant="ghost" onClick={toggleTheme}>
             {theme === "dark" ? <MdLightMode /> : <MdDarkMode />}
           </Button>
+          {isAuthenticated ? (<UserDropdown />) : (<AuthModal />)}
 
-          <AuthModal />
         </div>
       </div>
       <hr />
