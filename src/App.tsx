@@ -55,7 +55,7 @@ function App() {
 					}
 				/>
 				<Route
-					path="/dashboard/mock/exam"
+					path="/dashboard/mock/exam/:id"
 					element={
 						<ProtectedRoute>
 							<Exam />

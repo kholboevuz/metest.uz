@@ -1,285 +1,617 @@
-import music from '@/assets/musics/nova.mp3'
-import sound from '@/assets/musics/sound.m4a'
-import {
-	Card,
-	CardContent,
-	CardFooter,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card'
-import { Player } from '@lottiefiles/react-lottie-player'
-import { useEffect, useRef, useState } from 'react'
-import Countdown from 'react-countdown'
-import { CountdownCircleTimer } from 'react-countdown-circle-timer'
-import { Visualizer } from 'react-sound-visualizer'
-import { Badge } from '../ui/badge'
-import { Button } from '../ui/button'
-export default function Exam() {
-	const [audio, setAudio] = useState<MediaStream | null>(null)
-	const [isStartExam, setIsStartExam] = useState<boolean>(false)
-	const [isVoiceRecording, setIsVoiceRecording] = useState<boolean>(false)
-	const [isButtonDisabled, setIsButtonDisabled] = useState<boolean>(false)
-	// const [exam, setExam] = useState<ExamData[]>([])
-	const audioRef = useRef<HTMLAudioElement>(null)
-	const canvasRef = useRef<HTMLCanvasElement>(null)
-	const audioContextRef = useRef<AudioContext | null>(null)
-	const analyserRef = useRef<AnalyserNode | null>(null)
+import React, { useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import sound from '@/assets/musics/sound.m4a';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Player } from '@lottiefiles/react-lottie-player';
+import Countdown from 'react-countdown';
+import { CountdownCircleTimer } from 'react-countdown-circle-timer';
+import { Visualizer } from 'react-sound-visualizer';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { axiosClient } from '@/http/axios';
+import { FaSpinner } from 'react-icons/fa';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ExamType } from '@/types/type';
 
-	const startRecordingRef = useRef<(() => void) | undefined>(undefined)
+type PartKey = 'part1_1' | 'part1_2' | 'part2' | 'part3';
+type QuestionType = ExamType['exam']['part1_1'][0] | ExamType['exam']['part2'] | ExamType['exam']['part3'];
 
-	const startRecorder = () => {
-		const startSound = new Audio(sound)
-		setIsVoiceRecording(true)
-		startSound
-			.play()
-			.then(() => {
-				startRecordingRef.current!()
-			})
-			.catch(error => {
-				console.error('Failed to play the start sound:', error)
-				startRecordingRef.current!()
-			})
-		if (startRecordingRef.current) {
-			startRecordingRef.current()
-		}
-	}
+// Create a separate audio visualization component
+const AudioVisualizer: React.FC<{ audioRef: React.RefObject<HTMLAudioElement> }> = ({ audioRef }) => {
+	const canvasRef = useRef<HTMLCanvasElement>(null);
+	const animationFrameRef = useRef<number | null>(null);
+	const audioContextRef = useRef<AudioContext | null>(null);
+	const analyserRef = useRef<AnalyserNode | null>(null);
+	const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+	const visualizerSetupDoneRef = useRef<boolean>(false);
+
+	// Set up the visualizer once the component mounts
 	useEffect(() => {
-		// setExam(examData)
-		navigator.mediaDevices
-			.getUserMedia({
-				audio: true,
-				video: false,
-			})
-			.then(setAudio)
-	}, [])
+		// Check if audio element exists and has loaded
+		if (!canvasRef.current || !audioRef.current) return;
 
-	useEffect(() => {
-		if (audioRef.current && canvasRef.current) {
-			if (!audioContextRef.current) {
-				audioContextRef.current = new window.AudioContext()
-				analyserRef.current = audioContextRef.current.createAnalyser()
+		// Only set up the visualizer if it hasn't been set up already
+		// and if the audio element is ready
+		const setupVisualizer = () => {
+			if (visualizerSetupDoneRef.current) return;
 
-				const source = audioContextRef.current.createMediaElementSource(
-					audioRef.current
-				)
-				source.connect(analyserRef.current)
-				analyserRef.current.connect(audioContextRef.current.destination)
-				analyserRef.current.fftSize = 256
-			}
+			try {
+				// Create audio context
+				audioContextRef.current = new window.AudioContext();
+				analyserRef.current = audioContextRef.current.createAnalyser();
+				analyserRef.current.fftSize = 256;
 
-			const analyser = analyserRef.current
-			const bufferLength = analyser!.frequencyBinCount
-			const dataArray = new Uint8Array(bufferLength)
+				// Connect the audio element to the analyzer
+				if (audioRef.current) {
+					sourceNodeRef.current = audioContextRef.current.createMediaElementSource(audioRef.current);
+				}
+				if (sourceNodeRef.current) {
+					sourceNodeRef.current.connect(analyserRef.current);
+				}
+				analyserRef.current.connect(audioContextRef.current.destination);
 
-			const canvas = canvasRef.current
-			const canvasCtx = canvas.getContext('2d')
+				const canvas = canvasRef.current;
+				const canvasCtx = canvas ? canvas.getContext('2d') : null;
+				if (!canvasCtx) return;
+				const bufferLength = analyserRef.current.frequencyBinCount;
+				const dataArray = new Uint8Array(bufferLength);
 
-			const renderVisualizer = () => {
-				requestAnimationFrame(renderVisualizer)
+				const renderVisualizer = () => {
+					if (!canvasCtx || !analyserRef.current) return;
 
-				analyser!.getByteFrequencyData(dataArray)
+					animationFrameRef.current = requestAnimationFrame(renderVisualizer);
+					analyserRef.current.getByteFrequencyData(dataArray);
 
-				if (canvasCtx) {
-					canvasCtx.clearRect(0, 0, canvas.width, canvas.height)
+					// Make sure canvas dimensions are set correctly
+					if (canvas) {
+						canvas.width = canvas.clientWidth;
+						canvas.height = canvas.clientHeight;
+					}
 
-					const barWidth = (canvas.width / bufferLength) * 2.5
-					let barHeight
-					let x = 0
+					if (canvas) {
+						canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+					}
+					const barWidth = canvas ? (canvas.width / bufferLength) * 2.5 : 0;
+					let x = 0;
 
 					for (let i = 0; i < bufferLength; i++) {
-						barHeight = dataArray[i] / 2
-
-						const red = barHeight + 25 * (i / bufferLength)
-						const green = 250 * (i / bufferLength)
-						const blue = 50
-
-						canvasCtx.fillStyle = `rgb(${red},${green},${blue})`
-						canvasCtx.fillRect(
-							x,
-							canvas.height - barHeight,
-							barWidth,
-							barHeight
-						)
-
-						x += barWidth + 1
+						const barHeight = dataArray[i] / 2;
+						const red = barHeight + 25 * (i / bufferLength);
+						const green = 250 * (i / bufferLength);
+						const blue = 50;
+						canvasCtx.fillStyle = `rgb(${red},${green},${blue})`;
+						if (canvas) {
+							canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+						}
+						x += barWidth + 1;
 					}
+				};
+
+				renderVisualizer();
+				visualizerSetupDoneRef.current = true;
+
+			} catch (err) {
+				console.error("Audio visualization error:", err);
+			}
+		};
+
+		// Set up event listeners
+		const handleAudioPlay = () => {
+			// Resume AudioContext if it's suspended (browsers often require user interaction)
+			if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+				audioContextRef.current.resume();
+			}
+		};
+
+		// Try to setup the visualizer
+		if (audioRef.current.readyState >= 2) {
+			setupVisualizer();
+		} else {
+			// If the audio isn't loaded yet, wait for it
+			audioRef.current.addEventListener('canplay', setupVisualizer);
+		}
+
+		audioRef.current.addEventListener('play', handleAudioPlay);
+
+		// Cleanup function
+		return () => {
+			if (animationFrameRef.current) {
+				cancelAnimationFrame(animationFrameRef.current);
+			}
+
+			if (sourceNodeRef.current) {
+				sourceNodeRef.current.disconnect();
+			}
+
+			if (analyserRef.current) {
+				analyserRef.current.disconnect();
+			}
+
+			if (audioContextRef.current) {
+				audioContextRef.current.close();
+			}
+
+			if (audioRef.current) {
+				audioRef.current.removeEventListener('canplay', setupVisualizer);
+				audioRef.current.removeEventListener('play', handleAudioPlay);
+			}
+		};
+	}, [audioRef]);
+
+	return (
+		<canvas ref={canvasRef} className='w-full h-20 mt-4 ' />
+	);
+};
+
+export default function Exam() {
+	const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
+	const [isExamStarted, setIsExamStarted] = useState(false);
+	const [isRecording, setIsRecording] = useState(false);
+	const [isWaiting, setIsWaiting] = useState(false);
+	const [currentPart, setCurrentPart] = useState<PartKey>('part1_1');
+	const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+	const [examData, setExamData] = useState<ExamType | undefined>(undefined);
+	const [loading, setLoading] = useState(true);
+	const [responses, setResponses] = useState<string[]>([]);
+	const [fontSize, setFontSize] = useState(18);
+	const [error, setError] = useState<string | null>(null);
+	const [audioElementMounted, setAudioElementMounted] = useState(false);
+	const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+	// Removed unused audioChunks state
+	const audioRef = useRef<HTMLAudioElement>(null);
+	const startRecordingRef = useRef<(() => void) | undefined>(undefined);
+	const { id } = useParams<{ id: string }>();
+	const audioChunksRef = useRef<Blob[]>([]);
+	// Exam data fetching
+	useEffect(() => {
+		const fetchExamData = async () => {
+			try {
+				setLoading(true);
+				const response = await axiosClient.post('/metest/exam-id', { id });
+				setExamData(response.data.data);
+				setError(null);
+			} catch (err) {
+				console.error('Error fetching exam data:', err);
+				setError('Failed to load exam data');
+			} finally {
+				setLoading(false);
+			}
+		};
+		if (id) fetchExamData();
+	}, [id]);
+
+	useEffect(() => {
+		let stream: MediaStream | null = null;
+		const setupAudioStream = async () => {
+			try {
+				stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+				console.log('Audio stream tracks:', stream.getAudioTracks());
+				setAudioStream(stream);
+			} catch (err) {
+				console.error('Microphone access error:', err);
+				setError('Mikrofonga kirishda xatolik yuz berdi!');
+			}
+		};
+		setupAudioStream();
+
+		return () => {
+			if (stream) {
+				stream.getTracks().forEach(track => track.stop());
+			}
+		};
+	}, []);
+
+	// Mark audio element as mounted after render
+	useEffect(() => {
+		if (audioRef.current) {
+			setAudioElementMounted(true);
+		}
+	}, []);
+
+	const getCurrentQuestion = (): QuestionType | null => {
+		if (!examData) return null;
+
+		switch (currentPart) {
+			case 'part1_1':
+				return examData.exam.part1_1[currentQuestionIndex] || null;
+			case 'part1_2':
+				return examData.exam.part1_2.question[currentQuestionIndex] || null;
+			case 'part2':
+				return examData.exam.part2;
+			case 'part3':
+				return examData.exam.part3;
+			default:
+				return null;
+		}
+	};
+
+	const startExam = () => {
+		setIsExamStarted(true);
+		// Give time for the state to update
+		setTimeout(() => {
+			playAudio();
+		}, 100);
+	};
+	const playAudio = () => {
+		const current = getCurrentQuestion();
+		console.log('Playing audio for:', currentPart, currentQuestionIndex, 'Audio URL:', current?.audio);
+
+		if (audioRef.current && current?.audio) {
+			const audioUrl = current.audio;
+			audioRef.current.src = audioUrl;
+			audioRef.current.load();
+
+			audioRef.current.oncanplaythrough = () => {
+				if (audioRef.current) {
+					audioRef.current.play()
+						.catch(err => console.error('Audio play error:', err));
+				}
+			};
+		} else {
+			console.error('Cannot play audio: audioRef or audio source is missing');
+		}
+	};
+
+	const handleAudioEnd = () => {
+
+		setIsWaiting(true);
+	};
+
+	const startRecording = () => {
+		audioChunksRef.current = []; // Ref ni tozalash
+
+		const startSound = new Audio(sound);
+		startSound.play()
+			.then(() => {
+				if (mediaRecorder) {
+					console.log('MediaRecorder state before start:', mediaRecorder.state);
+					if (mediaRecorder.state !== 'recording') {
+						mediaRecorder.start();
+						console.log('MediaRecorder started, state:', mediaRecorder.state);
+						startRecordingRef.current?.();
+					}
+				} else {
+					console.error('MediaRecorder mavjud emas!');
+				}
+			})
+			.catch(err => {
+				console.error('Failed to play start sound:', err);
+				if (mediaRecorder && mediaRecorder.state !== 'recording') {
+					mediaRecorder.start();
+					console.log('MediaRecorder started (catch), state:', mediaRecorder.state);
+					startRecordingRef.current?.();
+				}
+			});
+	};
+	const handleWaitingComplete = () => {
+		setIsWaiting(false);
+		setIsRecording(true);
+		startRecording();
+	};
+	useEffect(() => {
+		if (audioStream) {
+			let mimeType = 'audio/mp3';
+			if (!MediaRecorder.isTypeSupported('audio/mp3')) {
+				if (MediaRecorder.isTypeSupported('audio/mp4') || MediaRecorder.isTypeSupported('audio/x-m4a')) {
+					mimeType = 'audio/mp4';
+				} else {
+					console.error('Brauzer MP3 yoki M4A formatlarini qo‘llab-quvvatlamaydi!');
+					setError('Brauzeringiz MP3 yoki M4A yozuvini qo‘llab-quvvatlamaydi.');
+					return;
 				}
 			}
 
-			renderVisualizer()
+			console.log('Using audio format:', mimeType);
+
+			const recorder = new MediaRecorder(audioStream, {
+				mimeType: mimeType,
+				audioBitsPerSecond: 64000
+			});
+
+			recorder.ondataavailable = (e) => {
+				console.log('ondataavailable triggered, data size:', e.data.size);
+				if (e.data.size > 0) {
+					audioChunksRef.current.push(e.data); // Ref ga qo‘shamiz
+				} else {
+					console.warn('Yozuv ma’lumotlari bo‘sh!');
+				}
+			};
+
+			recorder.onstop = () => {
+				console.log('Recording stopped, audioChunksRef:', audioChunksRef.current);
+
+			};
+
+			recorder.onerror = (e) => {
+				console.error('MediaRecorder error:', e);
+			};
+
+			setMediaRecorder(recorder);
+
+			return () => {
+				if (recorder.state !== 'inactive') {
+					recorder.stop();
+				}
+				audioChunksRef.current = []; // Tozalash
+			};
 		}
-	}, [])
+	}, [audioStream]);
 
-	const playAudio = () => {
-		audioRef.current?.play()
-	}
+	const handleRecordingComplete = async () => {
+		setIsRecording(false);
 
-	const startExam = () => {
-		setIsButtonDisabled(true)
-		playAudio()
-	}
+		if (mediaRecorder && mediaRecorder.state === 'recording') {
+			console.log('Stopping MediaRecorder, current state:', mediaRecorder.state);
+			mediaRecorder.stop();
+			await new Promise(resolve => {
+				mediaRecorder.onstop = () => {
+					console.log('MediaRecorder stopped successfully');
+					resolve(true);
+				};
+			});
+		}
 
-	const endAudio = () => {
-		setIsStartExam(true)
-	}
+		try {
+			console.log('Current audioChunks after stop (ref):', audioChunksRef.current);
+			const isMp3Supported = MediaRecorder.isTypeSupported('audio/mp3');
+			const audioFormat = isMp3Supported ? 'audio/mp3' : 'audio/mp4';
+			const fileExtension = isMp3Supported ? 'mp3' : 'm4a';
+			const audioBlob = new Blob(audioChunksRef.current, { type: audioFormat }); // Ref dan foydalanamiz
 
-	audioRef.current?.addEventListener('ended', endAudio)
+			console.log('Audio blob size:', audioBlob.size);
+			if (audioBlob.size === 0) {
+				throw new Error('Audio blob bo‘sh, yozuv amalga oshirilmadi!');
+			}
 
-	const [fontSize, setFontSize] = useState(18)
+			const formData = new FormData();
+			console.log('Audio format:', fileExtension);
+			formData.append('file', audioBlob, `recorder_${currentPart}_${currentQuestionIndex}.${fileExtension}`);
+			console.log('Form data file:', formData.get('file'));
 
-	const increaseFontSize = () => {
-		setFontSize(prevSize => prevSize + 2)
-	}
+			const response = await axiosClient.post('/admin/metest/add-file', formData, {
+				headers: {
+					'Content-Type': 'multipart/form-data'
+				}
+			});
 
-	const decreaseFontSize = () => {
-		setFontSize(prevSize => Math.max(prevSize - 2, 10))
-	}
+			if (response.data && response.data.file) {
+				const responseKey = `${currentPart}_${currentQuestionIndex}`;
+				setResponses(prev => [...prev, response.data.file]);
+				console.log(`Response ${responseKey}:`, response.data.file);
+			}
+		} catch (err) {
+			console.error('Error uploading recording:', err);
+		}
 
-	const Completionist = () => <span>You are good to go!</span>
+		audioChunksRef.current = []; // Ref ni tozalash
 
-	const renderer = ({
-		minutes,
-		seconds,
-		completed,
-	}: {
-		minutes: number
-		seconds: number
-		completed: boolean
-	}) => {
-		if (completed) {
-			return <Completionist />
+		if (!examData) return;
+
+		const nextIndex = currentQuestionIndex + 1;
+		let totalQuestionsInCurrentPart = 0;
+
+		switch (currentPart) {
+			case 'part1_1':
+				totalQuestionsInCurrentPart = examData.exam.part1_1.length;
+				break;
+			case 'part1_2':
+				totalQuestionsInCurrentPart = examData.exam.part1_2.question.length;
+				break;
+			default:
+				totalQuestionsInCurrentPart = 1;
+		}
+
+		if (nextIndex < totalQuestionsInCurrentPart) {
+			setCurrentQuestionIndex(nextIndex);
+			// setTimeout o'rniga darhol playAudio chaqiramiz
+			playAudio();
 		} else {
-			return (
-				<div className='text-lg '>
-					Qolgan vaqt:
-					<span className={`${seconds < 10 && 'text-red-700'} text-lg pl-1`}>
-						0{minutes}:{seconds}
-					</span>
-				</div>
-			)
+			moveToNextPart();
 		}
+	};
+
+
+	// Add a useEffect to play audio when currentQuestionIndex or currentPart changes
+	useEffect(() => {
+		if (isExamStarted && !isRecording && !isWaiting) {
+			console.log('Question or part changed, playing audio for:', currentPart, currentQuestionIndex);
+			playAudio();
+		}
+	}, [currentPart, currentQuestionIndex, isExamStarted, examData]);
+	const moveToNextPart = () => {
+		const partsOrder: PartKey[] = ['part1_1', 'part1_2', 'part2', 'part3'];
+		const currentIndex = partsOrder.indexOf(currentPart);
+		if (currentIndex < partsOrder.length - 1) {
+			const nextPart = partsOrder[currentIndex + 1];
+			setCurrentPart(nextPart);
+			setCurrentQuestionIndex(0);
+			// setTimeout o'rniga darhol playAudio chaqiramiz
+			playAudio();
+		} else {
+			console.log('Exam completed. Responses:', responses);
+		}
+	};
+
+	const increaseFontSize = () => setFontSize(prev => prev + 2);
+	const decreaseFontSize = () => setFontSize(prev => Math.max(prev - 2, 10));
+
+	const renderer = ({ minutes, seconds, completed }: { minutes: number; seconds: number; completed: boolean }) => {
+		if (completed) return <span>You are good to go!</span>;
+		return (
+			<div className='text-lg'>
+				Qolgan vaqt:
+				<span className={`${seconds < 5 ? 'text-red-700' : ''} text-lg pl-1`}>
+					0{minutes}:{seconds < 5 ? `0${seconds}` : seconds}
+				</span>
+			</div>
+		);
+	};
+
+	const renderContent = () => {
+		if (!examData) return null;
+		const current = getCurrentQuestion();
+
+		switch (currentPart) {
+			case 'part1_1':
+			case 'part1_2':
+				if (!current) return null;
+				return (
+					<>
+						{currentPart === 'part1_2' && (
+							<div className="flex gap-4 mb-4">
+								<img src={examData.exam.part1_2.image1} alt="Image 1" className="w-1/2" />
+								<img src={examData.exam.part1_2.image2} alt="Image 2" className="w-1/2" />
+							</div>
+						)}
+						<div className='text-center text-lg' style={{ fontSize: `${fontSize}px` }}>
+							{Array.isArray(current.question)
+								? current.question.map((q, index) => <span key={index}>{q.toString()}</span>)
+								: current.question}
+						</div>
+					</>
+				);
+			case 'part2':
+				return (
+					<>
+						<div className="flex gap-4 mb-4">
+							<img src={examData.exam.part2.image3} alt="Image 1" className="w-1/2" />
+						</div>
+						<ul className='list-disc pl-5'>
+							{examData.exam.part2.question.map((q, index) => (
+								<li key={index} style={{ fontSize: `${fontSize}px` }}>
+									{q.question}
+								</li>
+							))}
+						</ul>
+					</>
+				);
+			case 'part3':
+				return (
+					<div>
+						<h1 style={{ fontSize: `${fontSize}px` }}>{examData.exam.part3.question}</h1>
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead className="font-bold">FOR</TableHead>
+									<TableHead className="font-bold">AGAINST</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{examData.exam.part3.for.map((f, index) => (
+									<TableRow key={f._id}>
+										<TableCell style={{ fontSize: `${fontSize}px` }}>{f.question}</TableCell>
+										<TableCell style={{ fontSize: `${fontSize}px` }}>
+											{examData.exam.part3.against[index]?.question || ''}
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					</div>
+				);
+			default:
+				return null;
+		}
+	};
+	console.log('Responses:', examData);
+	if (error) {
+		return <div className="text-red-600 text-center pt-10">Error: {error}</div>;
 	}
 
 	return (
-		<div className='max-w-6xl m-auto pt-10 mb-16 '>
-			<div className='flex justify-center mb-10 lg:mb-32'>
+		<div className='max-w-6xl m-auto pt-10 mb-16'>
+			<div className='flex justify-center mb-10'>
 				<ol className='flex items-center w-full justify-center max-w-md'>
-					<li className="flex w-full items-center text-green-600 dark:text-green-500 after:content-[''] after:w-full after:h-1 after:border-b after:border-green-100 after:border-4 after:inline-block dark:after:border-green-800">
-						<span className='flex items-center justify-center w-10 h-10 bg-green-100 rounded-full lg:h-12 lg:w-12 dark:bg-green-800 shrink-0 font-bold text-lg'>
-							1.1
-						</span>
-					</li>
-					<li className="flex w-full items-center after:content-[''] after:w-full after:h-1 after:border-b after:border-yellow-100 after:border-4 after:inline-block dark:after:border-yellow-700">
-						<span className='flex items-center justify-center w-10 h-10 bg-yellow-100 rounded-full lg:h-12 lg:w-12 dark:bg-yellow-700 shrink-0 font-bold text-lg'>
-							1.2
-						</span>
-					</li>
-					<li className="flex w-full items-center after:content-[''] after:w-full after:h-1 after:border-b after:border-yellow-100 after:border-4 after:inline-block dark:after:border-yellow-700">
-						<span className='flex items-center justify-center w-10 h-10 bg-yellow-100 rounded-full lg:h-12 lg:w-12 dark:bg-yellow-700 shrink-0 font-bold text-lg'>
-							2
-						</span>
-					</li>
-					<li className='flex items-center w-full'>
-						<span className='flex items-center justify-center w-10 h-10 bg-yellow-100 rounded-full lg:h-12 lg:w-12 dark:bg-yellow-700 shrink-0 font-bold text-lg'>
-							3
-						</span>
-					</li>
+					{['1.1', '1.2', '2', '3'].map((step, index) => (
+						<li
+							key={index}
+							className={`flex ${index < 3 ? 'w-full' : ''} items-center ${currentPart === `part${step.replace('.', '_')}` ? 'text-green-600' : 'text-yellow-600'
+								} after:content-[''] after:w-full after:h-1 after:border-b after:border-4 ${index < 3 ? 'after:inline-block' : ''
+								} after:border-yellow-100`}
+						>
+							<span className='flex items-center justify-center w-10 h-10 bg-yellow-100 rounded-full lg:h-12 lg:w-12 shrink-0 font-bold text-lg'>
+								{step}
+							</span>
+						</li>
+					))}
 				</ol>
 			</div>
-			<div className='grid grid-cols-1 md:grid-cols-3 gap-10 items-center justify-between'>
+
+			<div className='grid grid-cols-1 md:grid-cols-3 gap-10 items-center'>
 				<div>
 					<Card>
 						<CardHeader className='bg-slate-200'>
 							<CardTitle>
-								<Badge className='p-2 font-bold bg-blue-600 dark:text-white hover:bg-blue-700'>
-									PART 1.1
+								<Badge className='p-2 font-bold bg-blue-600 dark:text-white'>
+									PART {currentPart.replace('part', '').replace('_', '.').toUpperCase()}
 								</Badge>
 							</CardTitle>
 						</CardHeader>
-						<hr />
 						<CardContent>
-							<div>
-								<audio className='hidden' ref={audioRef} controls src={music} />
-							</div>
-							<canvas
-								ref={canvasRef}
-								className='w-full h-32 mt-4 bg-slate-300'
+							<audio
+								controls
+								className='hidden'
+								ref={audioRef}
+								onEnded={handleAudioEnd}
+								onError={(e) => console.error('Audio error:', e)}
+								crossOrigin="anonymous"
 							/>
+
+							{audioElementMounted ? <AudioVisualizer audioRef={audioRef} /> : null}
 						</CardContent>
 						<CardFooter className='flex-col'>
-							<div>
-								<div className='flex justify-center gap-4 mb-4'>
-									<Button variant={'outline'} onClick={increaseFontSize}>
-										A +
-									</Button>
-									<Button variant={'outline'} onClick={decreaseFontSize}>
-										A -
-									</Button>
-								</div>
+							<div className='flex justify-center gap-4 mb-4'>
+								<Button variant={'outline'} onClick={increaseFontSize}>A +</Button>
+								<Button variant={'outline'} onClick={decreaseFontSize}>A -</Button>
 							</div>
-							<p
-								className='text-center text-lg'
-								style={{ fontSize: `${fontSize}px` }}
-							>
-								Please tell me about your best friend.
-							</p>
+							{renderContent()}
 						</CardFooter>
 					</Card>
 				</div>
+
 				<div className='flex justify-center'>
-					{isStartExam ? (
-						<div
-							className={`text-6xl font-bold text-yellow-700 ${
-								isVoiceRecording && 'hidden'
-							}`}
+					{!isExamStarted ? (
+						loading ? (
+							<FaSpinner className='animate-spin text-5xl text-yellow-700' />
+						) : (
+							<Button onClick={startExam}>Boshlash</Button>
+						)
+					) : isWaiting ? (
+						<CountdownCircleTimer
+							isPlaying
+							duration={5}
+							onComplete={handleWaitingComplete}
+							colors={['#004777', '#F7B801', '#A30000', '#A30000']}
+							colorsTime={[5, 3, 2, 0]}
 						>
-							<CountdownCircleTimer
-								isPlaying
-								duration={7}
-								onComplete={startRecorder}
-								colors={['#004777', '#F7B801', '#A30000', '#A30000']}
-								colorsTime={[7, 5, 2, 0]}
-							>
-								{({ remainingTime }) => remainingTime}
-							</CountdownCircleTimer>
-						</div>
-					) : (
-						<Button
-							onClick={startExam}
-							className={`${isButtonDisabled && 'hidden'}`}
-						>
-							Boshlash
-						</Button>
-					)}
+							{({ remainingTime }) => remainingTime}
+						</CountdownCircleTimer>
+					) : null}
 				</div>
+
 				<div>
 					<Card>
 						<CardHeader className='bg-blue-600 text-white text-center'>
 							<CardTitle className='font-bold'>
-								{isVoiceRecording ? (
-									<Countdown date={Date.now() + 30000} renderer={renderer}>
-										<Completionist />
-									</Countdown>
+								{isRecording ? (
+									<Countdown
+										date={Date.now() + ((getCurrentQuestion()?.time || 30) * 1000)}
+										renderer={renderer}
+										onComplete={handleRecordingComplete}
+									/>
 								) : (
-									<div>
-										<p>Speaking</p>
-									</div>
+									<div>Speaking</div>
 								)}
 							</CardTitle>
 						</CardHeader>
 						<CardContent>
 							<div className='flex justify-center mt-5'>
-								{isVoiceRecording && (
-									<div className='bg-red-200 p-3 rounded-lg inline-block  '>
+								{isRecording && (
+									<div className='bg-red-200 p-3 rounded-lg inline-block'>
 										<Player
 											src='https://lottie.host/dfd993ab-cd85-44de-8abd-b900bd9f2c40/Y7Pf4lLklJ.json'
-											background='transparent'
 											speed={2}
-											style={{
-												width: '20px',
-												height: '20px',
-												margin: 'auto',
-											}}
+											style={{ width: '20px', height: '20px', margin: 'auto' }}
 											loop
 											autoplay
 										/>
@@ -287,9 +619,9 @@ export default function Exam() {
 								)}
 							</div>
 							<div className='flex flex-col items-center mt-5 dark:bg-zinc-300 rounded-lg'>
-								<Visualizer audio={audio}>
+								<Visualizer audio={audioStream}>
 									{({ canvasRef, start }) => {
-										startRecordingRef.current = start
+										startRecordingRef.current = start;
 										return (
 											<canvas
 												ref={canvasRef}
@@ -297,7 +629,7 @@ export default function Exam() {
 												height={100}
 												className='w-full max-w-full h-auto'
 											/>
-										)
+										);
 									}}
 								</Visualizer>
 							</div>
@@ -306,5 +638,5 @@ export default function Exam() {
 				</div>
 			</div>
 		</div>
-	)
+	);
 }

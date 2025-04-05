@@ -21,3 +21,47 @@ export interface ReturnActionType {
     message: string;
     token: string;
 }
+
+
+interface Part1Question {
+    question: string;
+    time: number;
+    audio: string;
+    freetime: number;
+    _id: string;
+}
+
+interface BasicQuestion {
+    question: string;
+    _id: string;
+}
+export interface ExamType {
+    _id: string;
+    language: string;
+    createdAt: string;
+    updatedAt: string;
+    __v: number;
+    exam: {
+        part1_1: Part1Question[];
+        part1_2: {
+            image1: string;
+            image2: string;
+            question: Part1Question[];
+        };
+        part2: {
+            question: BasicQuestion[];
+            time: number;
+            audio: string;
+            freetime: number;
+            image3: string;
+        };
+        part3: {
+            question: string;
+            time: number;
+            audio: string;
+            freetime: number;
+            for: BasicQuestion[];
+            against: BasicQuestion[];
+        };
+    };
+}

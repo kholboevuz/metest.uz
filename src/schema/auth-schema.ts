@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const loginSchema = z.object({
   phone: z.string().min(1).max(50),
-  password: z.string().min(6).max(50),
+  password: z.string().min(2).max(50),
 });
 
 export const registerSchema = z
@@ -14,7 +14,7 @@ export const registerSchema = z
       .max(50, "Telefon raqam juda uzun"),
     password: z
       .string()
-      .min(6, "Parol kamida 6 ta belgidan iborat bo'lishi kerak")
+      .min(2, "Parol kamida 2 ta belgidan iborat bo'lishi kerak")
       .max(50),
     confirmPassword: z.string().min(6, "Parolni qayta kiriting").max(50),
   })
@@ -31,7 +31,7 @@ export const resetPasswordSchema = z
       .max(50, "Telefon raqam juda uzun"),
     password: z
       .string()
-      .min(6, "Parol kamida 6 ta belgidan iborat bo'lishi kerak")
+      .min(2, "Parol kamida 2 ta belgidan iborat bo'lishi kerak")
       .max(50),
     confirmPassword: z.string().min(6, "Parolni qayta kiriting").max(50),
   })

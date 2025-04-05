@@ -3,8 +3,13 @@ import { useRef, useState } from 'react'
 import { FaHome } from 'react-icons/fa'
 import { FaHeadset } from 'react-icons/fa6'
 import { IoArrowBackOutline } from 'react-icons/io5'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { Button } from '../ui/button'
+import { axiosClient } from '@/http/axios'
+import { useToast } from '../ui/use-toast'
+import useAuthUser from 'react-auth-kit/hooks/useAuthUser'
+import { IsUser } from '@/types/type'
+import { useNavigate } from 'react-router-dom';
 
 export default function Mock() {
 	const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
@@ -14,6 +19,8 @@ export default function Mock() {
 	const [isExam, setIsExam] = useState<boolean>(false)
 	const [isStartExam, setIsStartExam] = useState<boolean>(false)
 	const [micError, setMicError] = useState<string | null>(null)
+	const navigate = useNavigate();
+
 	const handleStartRecording = async () => {
 		try {
 			const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -39,6 +46,33 @@ export default function Mock() {
 			mediaRecorderRef.current.stop()
 			setIsRecording(false)
 			setIsExam(true)
+		}
+	}
+	const auth = useAuthUser() as IsUser | null;
+	const toast = useToast()
+	const { examType } = useParams()
+
+
+	const StartedExam = async () => {
+		const response = await axiosClient.post('/metest/exam-user', {
+			language: examType,
+			phone: auth?.phonenumber,
+		})
+
+		if (response.data.status) {
+			toast.toast({
+				description: 'Imtihon muvaffaqiyatli boshlandi',
+			})
+
+			navigate(`/dashboard/mock/exam/${response.data.data._id}`);
+
+
+		} else {
+			toast.toast({
+				variant: 'destructive',
+
+				description: `${response.data.message}`,
+			})
 		}
 	}
 
@@ -141,20 +175,21 @@ export default function Mock() {
 					)}
 
 					{isStartExam && !micError ? (
-						<Link to={'/dashboard/mock/exam'}>
-							<Button
-								className="bg-button hover:bg-buttonOff text-sm md:text-lg w-full py-3 md:py-5 mt-2"
-								disabled={!isStartExam}
-							>
-								<p className="flex items-center justify-center gap-2 text-white">
-									<FaHome /> Imtihonni boshlash
-								</p>
-							</Button>
-						</Link>
+
+						<Button
+							className="bg-button hover:bg-buttonOff text-sm md:text-lg w-full py-3 md:py-5 mt-2"
+							disabled={!isStartExam}
+							onClick={StartedExam}
+						>
+							<p className="flex items-center justify-center gap-2 text-white">
+								<FaHome /> Imtihonni boshlash
+							</p>
+						</Button>
+
 					) : (
 						<Button
 							className="bg-button hover:bg-buttonOff text-sm md:text-lg w-full py-3 md:py-5 "
-							disabled={!isStartExam || !!micError} // Disable if no mic
+							disabled={!isStartExam || !!micError}
 						>
 							<p className="flex items-center justify-center gap-2 text-white">
 								<FaHome /> Imtihonni boshlash
