@@ -257,29 +257,51 @@ export default function Exam() {
 		setIsWaiting(true);
 	};
 
+	// startRecording funksiyasini yangilash kerak
 	const startRecording = () => {
-		audioChunksRef.current = []; // Ref ni tozalash
+		audioChunksRef.current = [];
 
+		// MediaRecorder mavjudligini tekshiramiz
+		if (!mediaRecorder) {
+			console.error('MediaRecorder mavjud emas!');
+			setError('Mikrofonni ishga tushirishda xatolik yuz berdi');
+			return;
+		}
+
+		// MediaRecorder holatini tekshiramiz
+		if (mediaRecorder.state === 'recording') {
+			console.log('MediaRecorder allaqachon yozib olishni boshlagan');
+			return;
+		}
+
+		// Avval ovozni chalinishini kutib, keyin yozishni boshlaymiz
 		const startSound = new Audio(sound);
 		startSound.play()
 			.then(() => {
-				if (mediaRecorder) {
-					console.log('MediaRecorder state before start:', mediaRecorder.state);
-					if (mediaRecorder.state !== 'recording') {
-						mediaRecorder.start();
-						console.log('MediaRecorder started, state:', mediaRecorder.state);
-						startRecordingRef.current?.();
+				try {
+					mediaRecorder.start();
+					console.log('MediaRecorder muvaffaqiyatli boshlandi, holati:', mediaRecorder.state);
+					// Start visualizer only if we successfully started recording
+					if (startRecordingRef.current) {
+						startRecordingRef.current();
 					}
-				} else {
-					console.error('MediaRecorder mavjud emas!');
+				} catch (err) {
+					console.error('MediaRecorder ishga tushirish xatosi:', err);
+					setError('Yozishni boshlashda xatolik yuz berdi');
 				}
 			})
 			.catch(err => {
-				console.error('Failed to play start sound:', err);
-				if (mediaRecorder && mediaRecorder.state !== 'recording') {
+				console.error('Start signalini chalib bo\'lmadi:', err);
+				// Ovoz chalinmasa ham, yozib olishni boshlashga harakat qilamiz
+				try {
 					mediaRecorder.start();
-					console.log('MediaRecorder started (catch), state:', mediaRecorder.state);
-					startRecordingRef.current?.();
+					console.log('MediaRecorder ovoz signalisiz boshlandi, holati:', mediaRecorder.state);
+					if (startRecordingRef.current) {
+						startRecordingRef.current();
+					}
+				} catch (recErr) {
+					console.error('MediaRecorder ishga tushirish xatosi:', recErr);
+					setError('Yozishni boshlashda xatolik yuz berdi');
 				}
 			});
 	};
@@ -290,66 +312,82 @@ export default function Exam() {
 	};
 	useEffect(() => {
 		if (audioStream) {
-			let mimeType = 'audio/mp3';
-			if (!MediaRecorder.isTypeSupported('audio/mp3')) {
-				if (MediaRecorder.isTypeSupported('audio/mp4') || MediaRecorder.isTypeSupported('audio/x-m4a')) {
-					mimeType = 'audio/mp4';
-				} else {
-					console.error('Brauzer MP3 yoki M4A formatlarini qo‘llab-quvvatlamaydi!');
-					setError('Brauzeringiz MP3 yoki M4A yozuvini qo‘llab-quvvatlamaydi.');
-					return;
-				}
+			let mimeType = 'audio/webm'; // WebM ko'proq brauzerlar qo'llab-quvvatlaydi
+
+			if (MediaRecorder.isTypeSupported('audio/webm')) {
+				mimeType = 'audio/webm';
+			} else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+				mimeType = 'audio/mp4';
+			} else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+				mimeType = 'audio/ogg';
+			} else if (MediaRecorder.isTypeSupported('audio/mp3')) {
+				mimeType = 'audio/mp3';
 			}
 
-			console.log('Using audio format:', mimeType);
+			console.log('Ishlatiladigan audio formati:', mimeType);
 
-			const recorder = new MediaRecorder(audioStream, {
-				mimeType: mimeType,
-				audioBitsPerSecond: 64000
-			});
+			try {
+				// MediaRecorder sozlamalari
+				const recorder = new MediaRecorder(audioStream, {
+					mimeType: mimeType,
+					audioBitsPerSecond: 32000
 
-			recorder.ondataavailable = (e) => {
-				console.log('ondataavailable triggered, data size:', e.data.size);
-				if (e.data.size > 0) {
-					audioChunksRef.current.push(e.data); // Ref ga qo‘shamiz
-				} else {
-					console.warn('Yozuv ma’lumotlari bo‘sh!');
-				}
-			};
+				});
 
-			recorder.onstop = () => {
-				console.log('Recording stopped, audioChunksRef:', audioChunksRef.current);
 
-			};
 
-			recorder.onerror = (e) => {
-				console.error('MediaRecorder error:', e);
-			};
+				recorder.ondataavailable = (e) => {
+					if (e.data && e.data.size > 0) {
+						audioChunksRef.current.push(e.data);
+					}
+				};
 
-			setMediaRecorder(recorder);
+				recorder.onstop = () => {
+					console.log('Yozib olish to\'xtatildi, audio ma\'lumotlar:', audioChunksRef.current.length);
+				};
 
-			return () => {
-				if (recorder.state !== 'inactive') {
-					recorder.stop();
-				}
-				audioChunksRef.current = []; // Tozalash
-			};
+				recorder.onerror = (e) => {
+					console.error('MediaRecorder xatosi:', e);
+					setError('Audio yozishda xatolik yuz berdi');
+				};
+
+				setMediaRecorder(recorder);
+			} catch (err) {
+				console.error('MediaRecorder yaratishda xatolik:', err);
+				setError('Audio yozib olish funksiyasini ishga tushirishda xatolik');
+			}
 		}
 	}, [audioStream]);
 
 	const handleRecordingComplete = async () => {
 		setIsRecording(false);
 
-		if (mediaRecorder && mediaRecorder.state === 'recording') {
-			console.log('Stopping MediaRecorder, current state:', mediaRecorder.state);
-			mediaRecorder.stop();
-			await new Promise(resolve => {
-				mediaRecorder.onstop = () => {
-					console.log('MediaRecorder stopped successfully');
-					resolve(true);
-				};
-			});
+
+		if (mediaRecorder) {
+			try {
+				if (mediaRecorder.state === 'recording') {
+					console.log('MediaRecorder to\'xtatilmoqda, joriy holati:', mediaRecorder.state);
+
+					// Yangi Promise yaratamiz va onstop eventini kutamiz
+					await new Promise(resolve => {
+						const originalOnStop = mediaRecorder.onstop;
+
+						mediaRecorder.onstop = function (event) {
+							if (originalOnStop) originalOnStop.call(mediaRecorder, event);
+							console.log('MediaRecorder muvaffaqiyatli to\'xtatildi');
+							resolve(true);
+						};
+
+						mediaRecorder.stop();
+					});
+				} else {
+					console.log('MediaRecorder allaqachon to\'xtatilgan:', mediaRecorder.state);
+				}
+			} catch (err) {
+				console.error('MediaRecorder to\'xtatishda xatolik:', err);
+			}
 		}
+
 
 		try {
 			console.log('Current audioChunks after stop (ref):', audioChunksRef.current);
@@ -519,7 +557,7 @@ export default function Exam() {
 	}
 
 	return (
-		<div className='max-w-6xl m-auto pt-10 mb-16'>
+		<div className='max-w-6xl m-auto pt-10 mb-16 '>
 			<div className='flex justify-center mb-10'>
 				<ol className='flex items-center w-full justify-center max-w-md'>
 					{['1.1', '1.2', '2', '3'].map((step, index) => (
